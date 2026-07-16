@@ -36,12 +36,15 @@ stage-1 solver remains useful afterward as a fallback.
 ## Dependencies
 
 `jax` (+ `jaxlib`) and `numpy` only. Model functions are written in JAX; Jacobians come
-from `jax.jacfwd`, jit-compiled, materialized as **dense** numpy arrays.
+from JAX AD, jit-compiled, and materialized as **dense** numpy arrays.
 
-JAX's sparse support (`jax.experimental.sparse`) is explicitly rejected: no sparse
-factorizations, no practical sparse Jacobian extraction, patchy op coverage. If the
-project ever outgrows dense (>5000 vars), the route is coloring-based sparse Jacobian
-extraction plus `scipy.sparse.linalg.splu` — a hypothetical stage 3, out of scope here.
+JAX's sparse math support (`jax.experimental.sparse`) is explicitly rejected: no sparse
+factorizations and patchy op coverage. However, to avoid `vmap` memory exhaustion from 
+naive `jax.jacfwd` at $N=5000$, the architecture will use **Jacobian coloring** to 
+evaluate the derivatives efficiently. This colored JVP will scatter into a standard 
+dense array, bypassing sparse math entirely while mitigating memory scaling issues. If the
+project ever outgrows dense (>5000 vars), the route is `scipy.sparse.linalg.splu` — a 
+hypothetical stage 3, out of scope here.
 
 ## Package layout
 
@@ -70,6 +73,17 @@ examples/         # shoven_whalley.py, synthetic scalable CGE
 `f` (JAX callable over a flat vector), `lb`, `ub`, `x0`. Provides jit-compiled `f(z)`
 and dense Jacobian `J(z)` (as numpy arrays to the solvers). Validates shapes and
 `lb ≤ ub` at construction; raises immediately on structural errors.
+
+**Jacobian Coloring Extension:** To safely evaluate models at scale, `Model.build()` 
+will sequentially compute the Jacobian structure once at initialization to determine 
+a color map, and package a colored JVP into the `J(z)` callable. The solver remains 
+oblivious to this, receiving a fast, memory-safe dense matrix.
+
+Caveat: CGE income/aggregation equations produce **dense Jacobian rows**, and a single
+dense row makes column coloring degenerate toward n colors. The implementation
+therefore uses one mechanism — batched JVPs over column groups — where a group is a
+color class when the structure permits, and otherwise a fixed-size chunk (~256
+columns), which bounds peak memory regardless of sparsity structure.
 
 ### Normal map (`normal_map.py`)
 
@@ -107,11 +121,26 @@ Iteration:
 1. Assemble `H ∈ ∂Φ(z)` (an element of the generalized Jacobian) analytically from
    `∇f` and the FB partials, with the standard perturbation at the kink `(0,0)`.
 2. Solve `H d = −Φ`. If `H` is singular or `d` is not a descent direction for
-   `Ψ = ½‖Φ‖²`, fall back to Levenberg–Marquardt: `(HᵀH + μI) d = −HᵀΦ`.
+   `Ψ = ½‖Φ‖²`, fall back to a Levenberg–Marquardt step computed as the least-squares
+   solution of the stacked system `min‖[H; √μ·I]d + [Φ; 0]‖₂` via QR (never by forming
+   `HᵀH`, which squares the condition number — fatal on ill-scaled CGE Jacobians).
 3. Non-monotone Armijo linesearch on `Ψ` against `max` of the last `m̄` values —
    the same reference-value logic as stage 2, shared code where practical.
 
 Termination: `‖Φ‖∞ ≤ tol` (converged), else max-iteration / stall statuses.
+
+**Domain safety.** CGE functions (CES shares, logs) are undefined for out-of-bounds
+arguments, and unlike the normal-map solver, the FB iteration is not confined to
+`B`. Two measures keep it out of trouble:
+- Φ evaluates `f` through the projection: `f̃ = f ∘ π_B`. The FB sign structure forces
+  every root of the composed Φ into `l ≤ z ≤ u` (an out-of-bounds root would require
+  `φ(uᵢ − zᵢ, ·) = 0` with `uᵢ − zᵢ < 0`, impossible), so the solution set is
+  unchanged while `f` never sees out-of-bounds values of bounded variables. Free
+  variables are not clipped; models whose functions blow up in a free variable should
+  bound it.
+- NaN-aware linesearch: a trial point where `Ψ` is NaN/Inf is treated as `+∞` and
+  rejected; backtracking from an in-domain iterate always reaches defined territory
+  since the domain is open around the current point.
 
 ## Stage 2: PATH (`path/`)
 
@@ -149,14 +178,21 @@ covering vector `r = f_B(x_k)`. Bounded-variable complementary pivoting:
   the paper's recommendation.
 - Termination: `t` leaves at 1 (success), ray termination (no blocking variable), or
   pivot limit.
-- Degeneracy: perturbation/lexicographic-style ratio test with tolerances.
+- Degeneracy: Harris-style tolerance ratio test plus deterministic tiny bound
+  perturbations (EXPAND-like), removed at termination. Lexicographic rules are
+  rejected: they need rows of `B⁻¹` per tie and add complexity for no practical
+  benefit on empirical models.
 - Rank-deficient initial basis: restart the path from a point corresponding to the
   all-slack basis (Lemke start), per pp. 8–9; a `lemke_start` option forces this
   always, reproducing Lemke's method for comparison (as PATH offers).
 
-**Linear algebra:** dense LU of the n×n basis with rank-1 product-form updates per
-pivot and periodic refactorization (every ~50 pivots or on accuracy drift).
-Refactorizing every pivot would be O(n³) per pivot — unacceptable at n = 5000.
+**Linear algebra:** numpy has no LU-update or factor-reuse routines, so the basis is
+maintained as an **explicit inverse** `B⁻¹` with Sherman–Morrison rank-1
+column-replacement updates — O(n²) per pivot, fully vectorized, no eta-file loop.
+Stability is policed rather than assumed: every pivot checks the basic-solution
+residual `‖B·x_B − b‖∞` and refactorizes (fresh `numpy.linalg.solve`/`inv`) when it
+drifts past tolerance, with an unconditional refactorization at least every ~50
+pivots. Refactorizing every pivot would be O(n³) per pivot — unacceptable at n = 5000.
 
 ### Backtracing pathsearch (`pathsearch.py`)
 
@@ -198,7 +234,7 @@ take a watchdog step (paper p. 14).
 
 ## Out of scope
 
-- Sparse Jacobians / sparse basis factorization (stage-3 hypothetical).
+- Sparse basis factorization (stage-3 hypothetical; although Jacobian *extraction* uses coloring, the solver math remains dense).
 - A full modeling DSL (MPSGE-style); only the light helpers above.
 - PATH's later-era additions not in the 1993 paper (crash phase, proximal
   perturbation, preprocessing).
