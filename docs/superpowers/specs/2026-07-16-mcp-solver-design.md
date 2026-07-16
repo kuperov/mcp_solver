@@ -51,7 +51,8 @@ hypothetical stage 3, out of scope here.
 ```
 src/mcp_solver/
   problem.py      # MCPProblem: f (JAX callable), lb, ub, x0; jit f and Jacobian
-  normal_map.py   # projection π_B, normal map f_B, merit function ‖f_B‖
+  normal_map.py   # projection π_B (custom_jvp), normal map f_B, merit ‖f_B‖
+  scaling.py      # Ruiz equilibration of a linear system (shared by both solvers)
   model.py        # light modeling helpers (variable blocks, equation pairing, fix())
   result.py       # SolveResult: status enum, z, w, v, residual, iteration log
   options.py      # solver options (paper Table 1: σ, β, Δ, n̄, m̄, tolerances, limits)
@@ -90,6 +91,13 @@ columns), which bounds peak memory regardless of sparsity structure.
 `π_B(x) = clip(x, l, u)`; `f_B(x) = f(π_B(x)) + x − π_B(x)`; merit `Θ(x) = ‖f_B(x)‖`.
 Conversion between `x` and the triple `(z, w, v)`: `z = π_B(x)`, `v = (x−z)₊`,
 `w = (z−x)₊` (paper eq. 5).
+
+`π_B` carries a `jax.custom_jvp` fixing its derivative to **1 at exact-bound points**
+(boundary treated as interior). Measured behavior of stock `jnp.clip` (JAX 0.11) is a
+gradient of **0.5** at ties — a Clarke-interval midpoint that silently halves Jacobian
+columns whenever an iterate sits exactly on a bound, which projected iterates do by
+construction. Pinning the derivative to 1 selects a specific, informative
+B-subdifferential element and removes dependence on framework tie-breaking.
 
 ### Modeling helpers (`model.py`)
 
@@ -186,6 +194,17 @@ covering vector `r = f_B(x_k)`. Bounded-variable complementary pivoting:
   all-slack basis (Lemke start), per pp. 8–9; a `lemke_start` option forces this
   always, reproducing Lemke's method for comparison (as PATH offers).
 
+**Equilibration (required, not optional):** before pivoting, the linearized system is
+Ruiz-equilibrated — iterated row/column max-norm scaling `M̃ = R·M·C` with `q`, `r`,
+bounds, and slacks transformed consistently (`z̃ = C⁻¹z`, `w̃ = Rw`, `ṽ = Rv`;
+positive diagonal scalings preserve the complementarity pairing). CGE systems are
+natively terribly scaled (quantities ~10⁶ against prices ~1), and the explicit-inverse
+scheme below is *not backward stable*: its residuals start near `cond(B)·ε`, so an
+unscaled cond of 10⁸ would trip the refactorization monitor within a few pivots and
+degrade the engine to O(n³) per pivot. Merit values and descent tests are computed in
+original units; scaling is internal to the pivot engine. The same utility
+preconditions the stage-1 Newton systems.
+
 **Linear algebra:** numpy has no LU-update or factor-reuse routines, so the basis is
 maintained as an **explicit inverse** `B⁻¹` with Sherman–Morrison rank-1
 column-replacement updates — O(n²) per pivot, fully vectorized, no eta-file loop.
@@ -237,5 +256,7 @@ take a watchdog step (paper p. 14).
 - Sparse basis factorization (stage-3 hypothetical; although Jacobian *extraction* uses coloring, the solver math remains dense).
 - A full modeling DSL (MPSGE-style); only the light helpers above.
 - PATH's later-era additions not in the 1993 paper (crash phase, proximal
-  perturbation, preprocessing).
+  perturbation, *logical* presolve — fixed-variable elimination, redundancy
+  detection). Numerical scaling (Ruiz equilibration) is explicitly **in** scope; it
+  is load-bearing for the explicit-inverse basis scheme.
 - GPU execution (JAX runs on CPU here; nothing precludes GPU later).
