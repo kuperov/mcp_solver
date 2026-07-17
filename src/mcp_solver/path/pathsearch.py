@@ -1,11 +1,19 @@
 """Two-phase backward pathsearch over stored breakpoints (spec as amended 2026-07-17).
 
-Phase 1: check all stored breakpoints backward from the Newton end; accept the
-first point satisfying the non-monotone descent condition (NmD)
+Phase 1: check all stored breakpoints AFTER the starting point, backward from
+the Newton end; accept the first point satisfying the non-monotone descent
+condition (NmD)
     merit(p(t)) <= (1 - sigma * clamp(t, 0, 1)) * reference,
 Phase 2: if no breakpoint acceptable, search within segments by geometric halving
-from their far ends. Preferring stored breakpoints over interior points matches the
+from their far ends (this still uses breakpoints[0] as the low end of the first
+segment). Preferring stored breakpoints over interior points matches the
 backtrace's intent and is what the implementation and test suite pin down.
+
+breakpoints[0] is the search's starting point (e.g. the watchdog's check
+point) and is deliberately excluded from phase 1's direct candidate list: by
+construction its own merit is already <= reference, so testing it there would
+let the search trivially "accept" a null step instead of continuing to search
+for real progress along the path.
 """
 import numpy as np
 
@@ -16,8 +24,8 @@ def pathsearch(merit_fn, breakpoints, reference, sigma,
         return np.isfinite(m) and (
             m <= (1.0 - sigma * min(max(t, 0.0), 1.0)) * reference)
 
-    # Check all breakpoints first (backward from Newton end)
-    for i in range(len(breakpoints) - 1, -1, -1):
+    # Check breakpoints after the start first (backward from Newton end)
+    for i in range(len(breakpoints) - 1, 0, -1):
         t, x = breakpoints[i]
         m = merit_fn(x)
         if acceptable(t, m):
