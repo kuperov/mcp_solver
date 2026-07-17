@@ -193,6 +193,12 @@ covering vector `r = f_B(x_k)`. Bounded-variable complementary pivoting:
 - Rank-deficient initial basis: restart the path from a point corresponding to the
   all-slack basis (Lemke start), per pp. 8–9; a `lemke_start` option forces this
   always, reproducing Lemke's method for comparison (as PATH offers).
+  *Amended 2026-07-17 (implementation):* the outer loop's watchdog also uses the
+  Lemke start as a last resort — when the checkpoint path's pathsearch finds no
+  acceptable point, the linearization is retried once from the all-slack basis
+  before RAY/STALLED is reported. Rays are start-dependent on nonmonotone
+  linearizations; this extends the paper's §4.2 rank-deficiency trigger in spirit
+  and fires only where the solver previously reported guaranteed failure.
 
 **Equilibration (required, not optional):** before pivoting, the linearized system is
 Ruiz-equilibrated — iterated row/column max-norm scaling `M̃ = R·M·C` with `q`, `r`,
