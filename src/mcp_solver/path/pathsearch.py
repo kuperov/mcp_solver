@@ -1,10 +1,11 @@
-"""Backward pathsearch over stored breakpoints (spec as amended 2026-07-17).
+"""Two-phase backward pathsearch over stored breakpoints (spec as amended 2026-07-17).
 
-Walk the piecewise-linear path from the Newton end backward; accept the
+Phase 1: check all stored breakpoints backward from the Newton end; accept the
 first point satisfying the non-monotone descent condition (NmD)
     merit(p(t)) <= (1 - sigma * clamp(t, 0, 1)) * reference,
-searching each segment by geometric halving from its far end. Checking
-the endpoint first means a good Newton point costs one merit evaluation.
+Phase 2: if no breakpoint acceptable, search within segments by geometric halving
+from their far ends. Preferring stored breakpoints over interior points matches the
+backtrace's intent and is what the implementation and test suite pin down.
 """
 import numpy as np
 

@@ -225,6 +225,8 @@ entering-stack-only *backtracing* variant, whose motivation was 1993-era memory
 limits. At this project's scale snapshots cost a few MB, check the identical point
 sequence, and eliminate the reverse-pivoting code path entirely.
 
+*Amended 2026-07-17 (implementation):* the search is two-phase — all stored breakpoints are checked backward first; segment-interior Armijo halving runs only if no breakpoint satisfies (NmD). Preferring already-computed breakpoints over interior points matches the backtrace's intent and is what the test suite pins down.
+
 ### Domain errors during iteration
 
 If `f` is undefined (NaN/Inf) at a prospective iterate, treat as a failed m-step and
