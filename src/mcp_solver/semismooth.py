@@ -163,6 +163,8 @@ def solve_semismooth(problem, options=None):
             print(records[-1])
 
     f_final = problem.f_boxed(z)
+    # FB-residual convention (w,v from f at z), intentionally different from
+    # path/solver.py's normal_map.decompose(x, lb, ub) box-preimage convention.
     w = np.maximum(f_final, 0.0)
     v = np.maximum(-f_final, 0.0)
     res = natural_residual(z, f_final, lb, ub)

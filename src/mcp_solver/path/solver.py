@@ -117,6 +117,8 @@ def solve_path(problem, options=None):
         if opts.verbose:
             print(records[-1])
 
+    # Box-preimage convention (w,v from x vs. its projection), intentionally
+    # different from semismooth.py's FB-residual convention (w,v from f at z).
     z, w, v = decompose(x, lb, ub)
     fz = problem.f_np(z)
     if np.all(np.isfinite(fz)):

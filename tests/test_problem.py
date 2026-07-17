@@ -66,3 +66,6 @@ def test_validation_errors():
         MCPProblem(lambda z: z, np.zeros(2), -np.ones(2), np.zeros(2))  # lb > ub
     with pytest.raises(ValueError):
         MCPProblem(lambda z: z, np.zeros(2), np.ones(2), np.zeros(3))   # bad x0
+    with pytest.raises(ValueError):
+        MCPProblem(lambda z: z, np.array([np.inf]), np.array([np.inf]),
+                   np.array([0.0]))   # fixed at infinity

@@ -40,3 +40,29 @@ master at d542712, 47 tests green). Address during stage-2 planning/implementati
   ≤3-color bound.
 - SW model: homogeneity rank deficiency only visible at a cost-covering start;
   `p` start = `unit_cost(pf=1)` (benchmark-price convention).
+
+## Stage-2 disposition (2026-07-17)
+
+- Items 1-4: done.
+- Item 5 (coloring dense-row bail-out): explicitly carried to stage 3
+  (perf only).
+- Item 6 (LM descent in scaled space): accepted as a known limitation, out
+  of scope, unchanged.
+- Item 7 (reject non-finite fixed bounds): fixed in this commit
+  (`MCPProblem.__init__` in `src/mcp_solver/problem.py`).
+- Item 8 (DOMAIN_ERROR gloss): was already done.
+
+Newly logged minors from the stage-2 final review (not actioned beyond what's
+noted):
+
+- Last-iterate convergence check (vs. best-iterate) — logged, not addressed.
+- Dead `w_bar`/`v_bar` docs-code in `_slack_start`
+  (`src/mcp_solver/path/pivot.py`) — logged, not addressed.
+- Redundant `linearize` call in the watchdog Lemke fallback — logged, not
+  addressed.
+- `fb_system` recomputes Φ at accepted points — logged, not addressed.
+- The `w`/`v` conventions intentionally differ between the two solvers
+  (`path/solver.py` uses the box-preimage convention via
+  `normal_map.decompose`; `semismooth.py` uses the FB-residual convention
+  from `f` at `z`); cross-reference docstring/comment notes added at both
+  call sites in this commit.

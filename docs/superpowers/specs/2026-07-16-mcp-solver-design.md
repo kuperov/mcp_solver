@@ -190,6 +190,11 @@ covering vector `r = f_B(x_k)`. Bounded-variable complementary pivoting:
   perturbations (EXPAND-like), removed at termination. Lexicographic rules are
   rejected: they need rows of `B⁻¹` per tie and add complexity for no practical
   benefit on empirical models.
+  *Amended 2026-07-17 (implementation):* the EXPAND-style bound perturbations
+  proved unnecessary — the Harris two-pass test with largest-|pivot|
+  tie-breaking alone passes all degeneracy gates (Murty family, 240-instance
+  adversarial runs); perturbations remain a documented option if a future
+  degenerate model cycles.
 - Rank-deficient initial basis: restart the path from a point corresponding to the
   all-slack basis (Lemke start), per pp. 8–9; a `lemke_start` option forces this
   always, reproducing Lemke's method for comparison (as PATH offers).

@@ -29,6 +29,9 @@ class MCPProblem:
             raise ValueError("lb, ub, x0 must have identical shapes")
         if np.any(self.lb > self.ub):
             raise ValueError("lb > ub for some component")
+        fixed = self.lb == self.ub
+        if np.any(fixed & ~np.isfinite(self.lb)):
+            raise ValueError("fixed variables (lb == ub) must be finite")
         self._chunk = int(jac_chunk)
         self._lb_j = jnp.asarray(self.lb)
         self._ub_j = jnp.asarray(self.ub)
