@@ -213,12 +213,17 @@ residual `‖B·x_B − b‖∞` and refactorizes (fresh `numpy.linalg.solve`/`i
 drifts past tolerance, with an unconditional refactorization at least every ~50
 pivots. Refactorizing every pivot would be O(n³) per pivot — unacceptable at n = 5000.
 
-### Backtracing pathsearch (`pathsearch.py`)
+### Backward pathsearch over stored breakpoints (`pathsearch.py`)
 
-During path construction, store only the entering-variable stack (§2.3). If the
-endpoint fails the descent test, unpivot back through the stack, checking the
-non-monotone condition (NmD) at breakpoints; Armijo search within the first segment
-whose near endpoint passes and far endpoint fails, yielding a step satisfying (NmPs).
+During path construction, record a `(t, x)` snapshot at every pivot (Ralph's
+*backward* pathsearch). If the endpoint fails the descent test, walk the stored
+breakpoints from the end, checking the non-monotone condition (NmD); Armijo search
+within the first segment whose far endpoint fails, yielding a step satisfying (NmPs).
+
+*Amended 2026-07-17 (user-approved):* the original spec followed the paper's
+entering-stack-only *backtracing* variant, whose motivation was 1993-era memory
+limits. At this project's scale snapshots cost a few MB, check the identical point
+sequence, and eliminate the reverse-pivoting code path entirely.
 
 ### Domain errors during iteration
 
@@ -229,7 +234,8 @@ take a watchdog step (paper p. 14).
 
 - Numerical failure never raises; `SolveResult.status` is one of:
   `CONVERGED`, `RAY_TERMINATION`, `MAX_ITERATIONS`, `SINGULAR_BASIS`,
-  `DOMAIN_ERROR` (f undefined at `x0`), `STALLED`.
+  `DOMAIN_ERROR` (f — or any derivative the method needs — undefined at `x0`),
+  `STALLED`.
 - Structural errors (shape mismatch, `l > u`, unpaired variables) raise at
   `build()`/solve entry with clear messages.
 - Per-iteration log on the result: merit, step type (d/m/watchdog), pivot count, `T`
