@@ -32,11 +32,7 @@ def _fb(a, b):
     return phi, da, db
 
 
-def fb_system(z, fval, J, lb, ub, masks):
-    """(Phi, H): FB residual and a generalized-Jacobian element.
-
-    H = diag(alpha) + diag(beta) @ J, with fval/J the boxed f and Jacobian.
-    """
+def _phi_terms(z, fval, lb, ub, masks):
     n = z.size
     Phi = np.empty(n)
     alpha = np.empty(n)
@@ -63,7 +59,20 @@ def fb_system(z, fval, J, lb, ub, masks):
     Phi[m] = phi1
     alpha[m] = da + dpsi * dc
     beta[m] = dpsi * dd
+    return Phi, alpha, beta
 
+
+def fb_residual(z, fval, lb, ub, masks):
+    """FB residual Phi only — no Jacobian required (cheap trial-point eval)."""
+    return _phi_terms(z, fval, lb, ub, masks)[0]
+
+
+def fb_system(z, fval, J, lb, ub, masks):
+    """(Phi, H): FB residual and a generalized-Jacobian element.
+
+    H = diag(alpha) + diag(beta) @ J, with fval/J the boxed f and Jacobian.
+    """
+    Phi, alpha, beta = _phi_terms(z, fval, lb, ub, masks)
     H = np.diag(alpha) + beta[:, None] * J
     return Phi, H
 
@@ -94,17 +103,27 @@ def solve_semismooth(problem, options=None):
     masks = fb_masks(lb, ub)
     z = np.clip(problem.x0, lb, ub)
 
-    def system(z):
-        fval = problem.f_boxed(z)
+    def eval_phi(zz):
+        fval = problem.f_boxed(zz)
         if not np.all(np.isfinite(fval)):
-            return fval, None, None
-        Phi, H = fb_system(z, fval, problem.jac_boxed(z), lb, ub, masks)
-        if not (np.all(np.isfinite(Phi)) and np.all(np.isfinite(H))):
-            return fval, None, None
-        return fval, Phi, H
+            return None, None
+        Phi = fb_residual(zz, fval, lb, ub, masks)
+        if not np.all(np.isfinite(Phi)):
+            return None, None
+        return fval, Phi
 
-    fval, Phi, H = system(z)
+    def eval_H(zz, fval):
+        J = problem.jac_boxed(zz)
+        if not np.all(np.isfinite(J)):
+            return None
+        return fb_system(zz, fval, J, lb, ub, masks)[1]
+
+    fval, Phi = eval_phi(z)
     if Phi is None:
+        return SolveResult(Status.DOMAIN_ERROR, z, np.zeros_like(z),
+                           np.zeros_like(z), np.inf, [])
+    H = eval_H(z, fval)
+    if H is None:
         return SolveResult(Status.DOMAIN_ERROR, z, np.zeros_like(z),
                            np.zeros_like(z), np.inf, [])
 
@@ -122,15 +141,18 @@ def solve_semismooth(problem, options=None):
         alpha, accepted = 1.0, False
         while alpha >= opts.alpha_min:
             zt = np.asarray(z + alpha * d)
-            ft, Phit, Ht = system(zt)
+            ft, Phit = eval_phi(zt)
             if Phit is not None:
                 psit = 0.5 * float(Phit @ Phit)
-                if np.isfinite(psit) and \
-                        psit <= ref + opts.armijo_c * alpha * gTd:
-                    z, fval, Phi, H = zt, ft, Phit, Ht
-                    psi_hist.append(psit)
-                    accepted = True
-                    break
+                if psit <= ref + opts.armijo_c * alpha * gTd:
+                    Ht = eval_H(zt, ft)      # Jacobian ONLY at accepted points
+                    if Ht is not None:
+                        z, fval, Phi, H = zt, ft, Phit, Ht
+                        psi_hist.append(psit)
+                        accepted = True
+                        break
+                    # H undefined here: treat like a rejected trial, keep
+                    # backtracking toward the current (H-finite) iterate
             alpha *= 0.5
         if not accepted:
             status = Status.STALLED

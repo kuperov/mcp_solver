@@ -46,3 +46,17 @@ def decompose(x, lb, ub):
 def natural_residual(z, f_of_z, lb, ub):
     """||z - pi_B(z - f(z))||_inf — solver-independent optimality measure."""
     return float(np.abs(z - np.clip(z - f_of_z, lb, ub)).max())
+
+
+def fB_np(f_np, x, lb, ub):
+    """Normal map f_B(x) = f(pi_B(x)) + x - pi_B(x), plain numpy."""
+    z = np.clip(x, lb, ub)
+    return f_np(z) + x - z
+
+
+def merit(f_np, x, lb, ub):
+    """Theta(x) = ||f_B(x)||_2; +inf when f_B is undefined (spec merit)."""
+    val = fB_np(f_np, x, lb, ub)
+    if not np.all(np.isfinite(val)):
+        return np.inf
+    return float(np.linalg.norm(val))

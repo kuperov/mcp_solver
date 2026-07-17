@@ -22,7 +22,4 @@ class SolverOptions:
     pivot_tol: float = 1e-9
     basis_residual_tol: float = 1e-7
     lemke_start: bool = False
-    # jacobian extraction
-    jac_chunk: int = 256
-    jac_coloring: bool = True
     verbose: bool = False
