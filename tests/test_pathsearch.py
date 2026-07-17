@@ -57,3 +57,32 @@ def test_negative_t_clamped_in_acceptance_factor():
     assert got is not None            # 3.999 <= (1 - 0.5*0) * 4.0
     x, t, m = got
     assert m <= 4.0
+
+
+def _merit_capped(x):
+    # merit = |x|, but anything past 100 reads as an undefined (inf) region
+    v = float(x[0])
+    if v > 100.0:
+        return np.inf
+    return abs(v)
+
+
+def test_zero_t_point_with_equal_merit_rejected():
+    # A later breakpoint numerically coincident with the search's start
+    # (t == 0.0, merit == reference exactly) must NOT be accepted as
+    # progress -- that would be a zero-length / null step. With the bad
+    # endpoint's merit undefined (inf), and every interior point on either
+    # side strictly worse than reference, pathsearch must return None.
+    bps = _bp([0.0, 0.0, 1.0], [4.0, 4.0, 1000.0])
+    got = pathsearch(_merit_capped, bps, reference=4.0, sigma=0.01)
+    assert got is None
+
+
+def test_zero_t_point_with_strict_improvement_accepted():
+    # Same shape as above, but the t == 0.0 breakpoint's merit is strictly
+    # below the reference -- this IS real progress and must be accepted.
+    bps = _bp([0.0, 0.0, 1.0], [4.0, 3.9, 1000.0])
+    got = pathsearch(_merit_capped, bps, reference=4.0, sigma=0.01)
+    assert got is not None
+    x, t, m = got
+    assert t == 0.0 and m == 3.9

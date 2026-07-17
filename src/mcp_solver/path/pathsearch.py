@@ -9,11 +9,9 @@ from their far ends (this still uses breakpoints[0] as the low end of the first
 segment). Preferring stored breakpoints over interior points matches the
 backtrace's intent and is what the implementation and test suite pin down.
 
-breakpoints[0] is the search's starting point (e.g. the watchdog's check
-point) and is deliberately excluded from phase 1's direct candidate list: by
-construction its own merit is already <= reference, so testing it there would
-let the search trivially "accept" a null step instead of continuing to search
-for real progress along the path.
+Index 0 is deliberately excluded from phase 1's direct candidate list:
+accepting the path's own origin (breakpoints[0]) would be a null step, so the
+search always continues past it to look for real progress along the path.
 """
 import numpy as np
 
@@ -21,8 +19,17 @@ import numpy as np
 def pathsearch(merit_fn, breakpoints, reference, sigma,
                shrink=0.5, max_halvings=25):
     def acceptable(t, m):
-        return np.isfinite(m) and (
-            m <= (1.0 - sigma * min(max(t, 0.0), 1.0)) * reference)
+        if not np.isfinite(m):
+            return False
+        tc = min(max(t, 0.0), 1.0)
+        if tc <= 0.0:
+            # The t-factor is inactive here, so the NmD bound degenerates to
+            # m <= reference, which admits equality. A point numerically
+            # coincident with the search's checkpoint (t~0, m == reference)
+            # must not be accepted as "progress" -- require strict
+            # improvement instead.
+            return m < reference
+        return m <= (1.0 - sigma * tc) * reference
 
     # Check breakpoints after the start first (backward from Newton end)
     for i in range(len(breakpoints) - 1, 0, -1):
