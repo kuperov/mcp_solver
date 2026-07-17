@@ -75,10 +75,14 @@ def build_model_no_numeraire():
 
 if __name__ == "__main__":
     from mcp_solver import SolverOptions
+    from mcp_solver.path.solver import solve_path
     from mcp_solver.semismooth import solve_semismooth
 
     m = build_model()
-    res = solve_semismooth(m.build(), SolverOptions(verbose=True))
-    print(res.table())
-    for name, val in m.unpack(res.z).items():
-        print(f"{name} = {val}")
+    for name, solver in (("semismooth", solve_semismooth),
+                         ("path", solve_path)):
+        res = solver(m.build(), SolverOptions(verbose=True))
+        print(f"--- {name} ---")
+        print(res.table())
+        for vname, val in m.unpack(res.z).items():
+            print(f"{vname} = {val}")

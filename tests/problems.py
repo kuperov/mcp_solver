@@ -84,10 +84,43 @@ def upper_bounded_lcp():
     return p
 
 
+def murty(n=8):
+    """Murty-style exponential LCP family: M = I + 2*tril(ones, -1),
+    q = -ones. Solution derived in-plan: z* = e_1 (row 1: z1 - 1 = 0;
+    row i>1: 2 z1 + z_i - 1 = 1 > 0 with z_i = 0). Classic worst case
+    for Lemke pivot counts."""
+    M = np.eye(n) + 2.0 * np.tril(np.ones((n, n)), -1)
+    q = -np.ones(n)
+    Mj, qj = jnp.asarray(M), jnp.asarray(q)
+    p = MCPProblem(lambda z: Mj @ z + qj, np.zeros(n), np.full(n, INF),
+                   np.zeros(n))
+    sol = np.zeros(n)
+    sol[0] = 1.0
+    p.known_solution = sol
+    return p
+
+
+def josephy_variant():
+    """4-variable NCP in the Josephy/Kojima-Shindo family. Coefficients
+    are plan-defined (NOT a literature citation); correctness is verified
+    by MCP residuals only."""
+    def f(z):
+        z1, z2, z3, z4 = z[0], z[1], z[2], z[3]
+        return jnp.stack([
+            3 * z1**2 + 2 * z1 * z2 + 2 * z2**2 + z3 + 3 * z4 - 6,
+            2 * z1**2 + z1 + z2**2 + 3 * z3 + 2 * z4 - 2,
+            3 * z1**2 + z1 * z2 + 2 * z2**2 + 2 * z3 + 3 * z4 - 1,
+            z1**2 + 3 * z2**2 + 2 * z3 + 3 * z4 - 3,
+        ])
+    return MCPProblem(f, np.zeros(4), np.full(4, INF), np.full(4, 1.0))
+
+
 LIBRARY = {
     "kojima_shindo": kojima_shindo,
     "cournot": cournot_duopoly,
     "lcp_n20": lambda: synthetic_lcp(20, seed=0),
     "lcp_n80_degenerate": lambda: synthetic_lcp(80, seed=3, frac_active=0.7),
     "upper_bounded": upper_bounded_lcp,
+    "murty_n8": lambda: murty(8),
+    "josephy_variant": josephy_variant,
 }

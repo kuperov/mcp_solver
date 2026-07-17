@@ -1,4 +1,6 @@
 """Algorithm PATH (Dirkse & Ferris 1993, p. 14): the outer loop."""
+import dataclasses
+
 import numpy as np
 
 from mcp_solver.normal_map import decompose, fB_np, merit, natural_residual
@@ -83,6 +85,21 @@ def solve_path(problem, options=None):
             if cp_path is not None and len(cp_path.breakpoints) > 1:
                 found = pathsearch(merit_fn, cp_path.breakpoints,
                                    state.reference, opts.sigma)
+            if found is None and not opts.lemke_start:
+                # Last resort: the crash-start basis at the check point may
+                # itself be the reason no descent direction exists (its
+                # pivot sequence is one particular choice, not the only
+                # one). Retry that single linearization with the all-slack
+                # Lemke start before declaring a genuine stall/ray.
+                lemke_opts = dataclasses.replace(opts, lemke_start=True)
+                lin_cp2 = linearize(problem, checkpoint_x)
+                cp_path2 = (generate_path(lin_cp2, lemke_opts)
+                            if lin_cp2 is not None else None)
+                if cp_path2 is not None and len(cp_path2.breakpoints) > 1:
+                    found = pathsearch(merit_fn, cp_path2.breakpoints,
+                                       state.reference, opts.sigma)
+                    if found is not None:
+                        cp_path = cp_path2
             if found is None:
                 rayed = (path is not None
                          and path.status is PathStatus.RAY_TERMINATION)

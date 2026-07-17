@@ -1,10 +1,9 @@
 import pytest
 
+from mcp_solver.path.solver import solve_path
 from mcp_solver.semismooth import solve_semismooth
 
-# Stage 2 adds "path": solve_path here; every parametrized test then
-# runs through both solvers automatically (the spec's cross-check layer).
-SOLVERS = {"semismooth": solve_semismooth}
+SOLVERS = {"semismooth": solve_semismooth, "path": solve_path}
 
 
 @pytest.fixture(params=sorted(SOLVERS), ids=sorted(SOLVERS))
