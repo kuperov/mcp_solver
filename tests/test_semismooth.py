@@ -79,6 +79,29 @@ def test_stalls_gracefully_on_infeasible_problem():
     assert res.status in (Status.STALLED, Status.MAX_ITERATIONS)
 
 
+def test_nonfinite_jacobian_at_x0_never_raises():
+    # f(z) = sqrt(z) - 0.5 on [0, inf): f is finite at z=0 but its
+    # derivative blows up at the bound. The FB system's Jacobian element
+    # is then non-finite even though f itself is fine; solving must never
+    # raise (LinAlgError etc.) and should report a domain failure.
+    p = MCPProblem(lambda z: jnp.sqrt(z) - 0.5, np.zeros(1),
+                   np.array([INF]), np.array([0.0]))
+    res = solve_semismooth(p)
+    assert isinstance(res.status, Status)
+    assert res.status is Status.DOMAIN_ERROR
+
+
+def test_nonfinite_jacobian_guard_does_not_block_interior_start():
+    # Same f as above but starting interior (x0=1.0), where f and its
+    # derivative are both finite: must still converge normally, i.e. the
+    # non-finite guard must not reject perfectly good iterates.
+    p = MCPProblem(lambda z: jnp.sqrt(z) - 0.5, np.zeros(1),
+                   np.array([INF]), np.array([1.0]))
+    res = solve_semismooth(p)
+    _check_mcp(p, res)
+    np.testing.assert_allclose(res.z, [0.25], atol=1e-6)
+
+
 def test_badly_scaled_problem_converges():
     # quantities ~1e6 against prices ~1 (CGE-style scaling)
     D = np.array([1e6, 1.0, 1e-4])

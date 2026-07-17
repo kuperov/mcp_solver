@@ -99,6 +99,8 @@ def solve_semismooth(problem, options=None):
         if not np.all(np.isfinite(fval)):
             return fval, None, None
         Phi, H = fb_system(z, fval, problem.jac_boxed(z), lb, ub, masks)
+        if not (np.all(np.isfinite(Phi)) and np.all(np.isfinite(H))):
+            return fval, None, None
         return fval, Phi, H
 
     fval, Phi, H = system(z)
