@@ -112,8 +112,9 @@ pathsearch** walks the stored breakpoints toward the current point; a
 **watchdog** allows several cheap "d-steps" between full merit checks and
 falls back to the last check point when things go wrong. Rays on nonmonotone
 linearizations are retried once from the all-slack (Lemke) basis before
-failure is reported. Details: Dirkse & Ferris (1993), `cstr1179.pdf` in the
-repo root, and the annotated spec in `docs/superpowers/specs/`.
+failure is reported. Details: 
+[Dirkse & Ferris (1993)](https://pages.cs.wisc.edu/~ferris/techreports/cstr1179.pdf),
+and the annotated spec in `docs/superpowers/specs/`.
 
 ### Numerical machinery worth knowing about
 
@@ -225,7 +226,6 @@ src/mcp_solver/
     solver.py     Algorithm PATH outer loop
 docs/superpowers/ design spec (with amendment history), implementation
                   plans, and stage carryover notes
-cstr1179.pdf      Dirkse & Ferris (1993), the paper this implements
 ```
 
 ## Known limitations
@@ -246,7 +246,8 @@ cstr1179.pdf      Dirkse & Ferris (1993), the paper this implements
 ## References
 
 - S. P. Dirkse & M. C. Ferris (1993), *The PATH Solver: A Non-Monotone
-  Stabilization Scheme for Mixed Complementarity Problems* (`cstr1179.pdf`).
+  Stabilization Scheme for Mixed Complementarity Problems*
+  [link](https://pages.cs.wisc.edu/~ferris/techreports/cstr1179.pdf).
 - S. M. Robinson (1992), normal maps and the normal-map equation `f_B(x)=0`.
 - L. Mathiesen (1985), the complementarity format for Walrasian equilibrium.
 - A. Fischer (1992), the Fischer–Burmeister NCP function.
