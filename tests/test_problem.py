@@ -69,3 +69,41 @@ def test_validation_errors():
     with pytest.raises(ValueError):
         MCPProblem(lambda z: z, np.array([np.inf]), np.array([np.inf]),
                    np.array([0.0]))   # fixed at infinity
+
+
+# --- parameterized residual f(z, params) + set_params (compile/coloring reuse) --
+def _param_f(z, params):
+    # z^2 - c  (c a per-component parameter); root at z = sqrt(c) for z >= 0
+    return z**2 - params["c"]
+
+
+def test_parameterized_residual_and_set_params():
+    from mcp_solver import SolverOptions, solve_path
+
+    n = 5
+    lb, ub = np.zeros(n), np.full(n, np.inf)
+    x0 = np.full(n, 0.5)
+    c0 = jnp.asarray(np.full(n, 4.0))
+    p = MCPProblem(_param_f, lb, ub, x0, params={"c": c0})
+
+    # f and jac read the current params
+    z = np.full(n, 2.0)
+    np.testing.assert_allclose(p.f_np(z), np.zeros(n), atol=1e-12)  # 2^2 - 4 = 0
+    np.testing.assert_allclose(np.diag(p.jac(z)), np.full(n, 4.0), rtol=1e-10)  # 2z
+
+    r1 = solve_path(p, SolverOptions())
+    assert r1.converged
+    np.testing.assert_allclose(r1.z, np.full(n, 2.0), atol=1e-8)
+
+    # swap params on the SAME problem object (no rebuild) -> new root sqrt(9)=3
+    p.set_params({"c": jnp.asarray(np.full(n, 9.0))})
+    np.testing.assert_allclose(p.f_np(z), np.full(n, -5.0), atol=1e-12)  # 4 - 9
+    r2 = solve_path(p, SolverOptions())
+    assert r2.converged
+    np.testing.assert_allclose(r2.z, np.full(n, 3.0), atol=1e-8)
+
+
+def test_set_params_requires_parameterized_problem():
+    p = MCPProblem(lambda z: z - 1.0, np.zeros(1), np.full(1, np.inf), np.array([0.5]))
+    with pytest.raises(ValueError):
+        p.set_params({"c": jnp.asarray([1.0])})
