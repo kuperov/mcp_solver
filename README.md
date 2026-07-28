@@ -172,7 +172,7 @@ gate: n = 2000 through the semismooth solver, n = 1000 through PATH.
 ## Testing
 
 ```bash
-.venv/bin/python -m pytest -m 'not slow' -q    # ~110 tests, <1 min
+.venv/bin/python -m pytest -m 'not slow' -q    # ~105 tests, <1 min
 .venv/bin/python -m pytest -m slow -v          # large-n scale gates (minutes)
 ```
 
