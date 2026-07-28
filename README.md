@@ -39,7 +39,6 @@ python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest -m 'not slow' -q   # full test suite
 .venv/bin/python examples/shoven_whalley.py   # 2x2x2 CGE through both solvers
-.venv/bin/python examples/agcge_national.py   # 9-sector agricultural CGE
 ```
 
 ### Raw API
@@ -170,28 +169,6 @@ numeraire doubles all prices and changes nothing real).
 generator (gross substitutes, hence unique equilibrium) used as the scale
 gate: n = 2000 through the semismooth solver, n = 1000 through PATH.
 
-**`examples/agcge_national.py`** — the flagship: a single-country
-**agricultural CGE** (9 sectors × labour/capital/land, calibrated from a
-social accounting matrix in `examples/data/`) formulated as a square MCP —
-CES value added, Leontief intermediates, CET export transformation with
-large-country foreign demand, Armington import composites, Stone-Geary
-households, full-employment closure. The over-determined equilibrium system
-is squared by dropping two provably redundant identities (value-added zero
-profit; the current account, by Walras' law) and fixing a numeraire; both
-dropped identities are re-verified at every solution. The benchmark
-replicates exactly (0 iterations), and FMD-style and tariff counterfactuals
-solve in ~4 PATH iterations from the benchmark warm start:
-
-```
-=== FMD-style shock (beef/pork market closure + 5% tfp cut) ===
-    sector      Z %      E %      M %     pq %     Xp %
-      beef   -24.32   -28.58    11.56     3.42    -0.89
-      pork    -1.39   -14.82     1.75     0.68    -0.23
-    grains     4.66     5.34    -6.96    -2.58     0.35
-       ...
-  real GDP   -0.027 %   eps 1.0013   factor returns [1. 0.9999 0.8406]
-```
-
 ## Testing
 
 ```bash
@@ -236,8 +213,6 @@ docs/superpowers/ design spec (with amendment history), implementation
 - The 1993 paper is implemented faithfully, but PATH-the-product's later
   additions (crash phase, proximal perturbation, logical presolve) are out
   of scope.
-- `sigma_va = 1` exactly is rejected by the AgCGE sample (it uses the pure
-  CES unit-cost form); use 1.001 for Cobb-Douglas-like behaviour.
 - Deliberate deviations from the paper (snapshot pathsearch instead of
   entering-stack backtracing; watchdog Lemke restarts; Harris-only
   degeneracy handling) are annotated inline in
